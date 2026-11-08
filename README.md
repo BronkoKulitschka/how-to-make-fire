@@ -1,22 +1,13 @@
-# How to Make Fire
+# How to Make Fire · v0.2
 
-Spielbarer Browserprototyp 0.1. Ein Platz am Waldrand, drei Streichhölzer und ein überschaubarer Auftrag.
+Eine 3D-Feuerstelle im Wald. Drei Streichhölzer. Es wird dunkel.
 
 ## Spielen
 
-Am Computer die ZIP vollständig entpacken und index.html im Browser öffnen. Auf Android lässt sich das Spiel über GitHub Pages in Chrome aufrufen. Auf „Platz nehmen“ tippen. Verfügbare Handlungen stehen unter der Szene. Am Rechner funktionieren auch die angezeigten Zifferntasten. Die Aktionen ändern sich mit der Situation. Hintergrundgeräusche lassen sich über „Ton“ abschalten. Ein neuer Durchgang startet wieder mit drei Streichhölzern.
+Die Seite öffnen und die Dinge an der Feuerstelle mit der Maus oder dem Finger untersuchen. Gegenstände reagieren auf Berühren und Ziehen. Die erste Berührung aktiviert den Ton und die Spielzeit. Die Kamera bleibt am selben Platz. Zum erneuten Spielen die Seite neu laden.
 
-## GitHub Pages
+GitHub Pages kann dieses Verzeichnis direkt aus dem Stamm von main ausliefern. Lokal lässt sich index.html im Browser öffnen. Alle Spielressourcen liegen im Repository.
 
-1. Ein Repository anlegen, beispielsweise how-to-make-fire. Bei GitHub Free ein öffentliches Repository verwenden.
-2. Alle entpackten Dateien direkt auf oberster Ebene in den Branch main hochladen.
-3. Unter Settings → Pages → Build and deployment „Deploy from a branch“ auswählen, anschließend main und /(root). Speichern.
-4. Nach dem Deployment die unter Pages angezeigte Spieladresse öffnen.
+## Aufbau
 
-## Weiterentwickeln
-
-- game.js enthält Spielzeit, Wetter, Gegenstände, Begegnungen und Siegbedingung. In available() stehen die momentan möglichen Handlungen, in act() ihre Folgen. tick() steuert zeitabhängige Ereignisse.
-- render.js zeichnet die wechselnden Teile der Szene, erzeugt das Geräusch von Wind und Feuer und verarbeitet Eingaben.
-- woods.jpg ist die feste Kulisse. index.html enthält die Oberfläche und deren Darstellung.
-
-Alle Dateien bleiben im selben Verzeichnis. Es gibt keine externen Laufzeitabhängigkeiten.
+game.js enthält Zustände und Reaktionen. mesh.js projiziert die 3D-Geometrie, rendert sie mit WebGL und ermittelt per Strahltest, welches Objekt berührt wurde. Für Geräte ohne WebGL gibt es eine perspektivische Canvas-Darstellung. world.js baut Landschaft und Gegenstände auf. render.js verbindet Spielzeit, Audio, Kamera und Zeigereingaben.

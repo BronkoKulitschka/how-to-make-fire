@@ -1,68 +1,85 @@
-const fresh=()=>({time:0,playing:false,done:false,matches:3,paper:false,pinned:false,lighter:false,cold:false,braced:false,bottle:false,stamp:false,visitor:0,visitAt:0,stormUntil:0,steadyUntil:0,flameUntil:0,strikes:0,note:"",lastAction:0});
-let s=fresh();
+// Spielzustand und Reaktionen der Gegenstände. Die Kamera bleibt am Lagerplatz.
+const game = {
+  t:0, awake:false, box:false, matches:3, hand:null, lit:0, pocket:false,
+  paper:'wind', pinned:false, braced:false, bottle:false, tag:false, done:false,
+  visitor:'none', visitAt:18, coughAt:0, still:false, stormUntil:0,
+  fallen:0, note:'', noteUntil:0, sound:'', paperDelay:0
+};
+function thought(text,duration=3){game.note=text;game.noteUntil=game.t+duration}
 function weather(){
- if(s.done)return "calm";
- if(s.visitor===2||s.time<s.stormUntil)return "wind";
- const phase=s.time%26;
- return phase<8?"wind":phase<13?"rain":"calm";
+  if(game.visitor==='alien'||game.t<game.stormUntil)return 'wind';
+  const p=game.t%29;
+  return p<8?'wind':p<13?'rain':'quiet';
 }
-function say(line){s.note=line;s.lastAction=s.time}
-function tick(dt){
- if(!s.playing||s.done)return;
- s.time+=dt;
- if(s.visitor===0 && s.time>=18){s.visitor=1;s.visitAt=s.time;say("Etwas verdunkelt das Holz. Neben dir knirscht Kies.")}
- else if(s.visitor===1&&s.time-s.visitAt>7){s.visitor=3;s.visitAt=s.time;say("Der Schatten ist weg. Der Kies knirscht noch einmal.")}
- else if(s.visitor===3&&s.time-s.visitAt>12){s.visitor=2;s.visitAt=s.time;say("Eine Zigarette ragt ins Bild. Der Schatten hat diesmal mehr Finger.")}
- else if(s.visitor===2&&s.time-s.visitAt>13){s.visitor=3;s.visitAt=s.time;say("Der Schatten zieht weiter. Die Zigarette auch.")}
- if(s.time>=24)s.cold=true;
+function extinguish(){
+  if(game.hand==='match'){game.hand=null;game.fallen++}
+  game.lit=0;game.still=false;game.sound='out';
 }
-function available(){
- if(!s.playing)return [["start","Platz nehmen"]];
- if(s.done)return [["restart","Noch einmal"]];
- const a=[];
- if(s.visitor===2)a.push(["give","Feuer geben"]);
- if(s.time<s.steadyUntil)a.push(["move","Flamme zum Holz"]);
- if(!s.paper && paperInReach())a.push(["paper","Papier greifen"]);
- if(s.paper&&!s.pinned)a.push(["pin","Stein aufs Papier"]);
- if(s.time>=s.steadyUntil&&s.time>=s.flameUntil){if(s.matches)a.push(["match","Streichholz anreißen"]);
- if(s.lighter)a.push(["light","Feuerzeug zünden"]);}
- if(s.cold&&!s.braced)a.push(["brace","Hände abstützen"]);
- if(!s.lighter)a.push(["pocket","Jacke abtasten"]);
- if(s.bottle&&!s.stamp)a.push(["sign","Schild umdrehen"]);
- return a;
+function advance(dt){
+  if(!game.awake)return;
+  game.t+=dt;
+  if(game.done)return;
+  if(game.t>=game.visitAt){
+    if(game.visitor==='none'){game.visitor='person';game.visitAt=game.t+6;game.sound='step'}
+    else if(game.visitor==='person'){game.visitor='away';game.visitAt=game.t+10}
+    else if(game.visitor==='away'){game.visitor='alien';game.visitAt=game.t+16;game.sound='step'}
+    else if(game.visitor==='alien'){game.visitor='away';game.visitAt=game.t+14}
+    else game.visitAt=Infinity;
+  }
+  if(game.lit&&game.t>game.lit)extinguish();
+  if(game.coughAt&&game.t>game.coughAt){game.sound='cough';game.coughAt=0}
 }
-function paperInReach(){return s.time%10>3&&s.time%10<8}
-function ignite(kind){
- s.strikes++;
- if(kind==="match")s.matches--;
- if(s.cold&&!s.braced){
-  say(kind==="match"?"Die Finger zittern. Das Holz fällt zwischen die Scheite.":"Dein Daumen rutscht ab. Die Finger zittern.");return;
- }
- s.flameUntil=s.time+.85;
- if(weather()==="wind"){say("Ein kurzes Fssst. Ein Blatt streift deine Hand.");return}
- if(weather()==="rain"){say("Ein einzelner Tropfen trifft die Flamme.");return}
- if(!s.paper){say("Eine schwarze Kerbe im Holz. Ein Fetzen Papier treibt vorbei.");return}
- if(!s.pinned){say("Das Papier hebt an einer Ecke ab. Neben dem Holz liegt ein flacher Stein.");return}
- if(!s.bottle){s.bottle=true;say("Ein metallisches Klonk. Auf deinem Stein steht eine Flasche mit einem Blechschild.");return}
- if(!s.stamp){say("Das Blechschild kippt über den Zunder. Auf der Rückseite steht etwas.");return}
- s.done=true;say("Es brennt. Ein Windstoß. Es brennt immer noch.");
+function takeMatch(){
+  if(!game.box){game.box=true;game.sound='box';return}
+  if(game.hand==='match')return;
+  if(!game.matches){game.sound='box';thought('Leer. In der Jacke klickt etwas.');return}
+  game.hand='match';game.matches--;game.lit=0;game.still=false;game.sound='box';
 }
-function act(id){
- if(!available().some(([key])=>key===id))return;
- switch(id){
- case "start":s.playing=true;say("Drei Hölzer. Die Blätter bewegen sich.");break;
- case "restart":s=fresh();break;
- case "paper":s.paper=true;say("Trocken. Beim Bücken klickt etwas in deiner Jacke.");break;
- case "pin":s.pinned=true;say("Der Stein hält das Papier am Holz.");break;
- case "brace":s.braced=true;say("Du stützt die Hand auf deinem Knie ab.");break;
- case "pocket":s.lighter=true;say("Ein Feuerzeug. Offenbar deins.");break;
- case "give":{
-  const borrowed=s.matches===0;
-  if(!borrowed)s.matches--;
-  s.visitor=4;s.steadyUntil=s.time+5;s.stormUntil=s.time+8;
-  say(borrowed?"Der Gast reicht dir ein Streichholz. Die Zigarette glüht.":"Die Zigarette glüht. Von weit oben kommt ein leises Husten.");break;}
- case "move":s.steadyUntil=s.time;s.flameUntil=0;say("Auf halbem Weg erlischt das Streichholz.");break;
- case "sign":s.stamp=true;say("„Feuerstelle vorläufig zugelassen. Rückwirkend.“ Das Schild bleibt jetzt auf der anderen Seite hängen.");break;
- case "match":case "light":ignite(id);break;
- }
+function ignite(){
+  if(game.lit)return;
+  if(game.hand!=='match'&&game.hand!=='lighter')return;
+  game.sound='strike';
+  if(game.t>33&&!game.braced&&game.visitor!=='alien'){
+    extinguish();thought('Meine Finger zittern.');return;
+  }
+  const exposed=weather()!=='quiet';
+  game.lit=game.t+(exposed?1.6:8);game.still=false;
+}
+function touch(id){
+  if(game.done)return;
+  switch(id){
+    case 'box': takeMatch();break;
+    case 'stripe': if(game.hand==='match')ignite();else takeMatch();break;
+    case 'match':takeMatch();break;
+    case 'pocket':
+      if(!game.pocket){game.pocket=true;game.sound='box';thought('Ein Feuerzeug. Offenbar meins.')}
+      game.hand='lighter';game.still=false;game.lit=0;break;
+    case 'lighter':game.hand='lighter';ignite();break;
+    case 'knee':game.braced=true;game.sound='cloth';break;
+    case 'paper':
+      if(game.paper==='wind'){game.paper='held';game.sound='cloth'}
+      else if(game.paper==='held'){game.paper='placed';game.sound='cloth'}
+      else touch('wood');break;
+    case 'stone':
+      if(game.paper==='placed'){game.pinned=true;game.sound='stone'}break;
+    case 'tag':
+      if(game.bottle){game.tag=!game.tag;game.sound='metal';thought(game.tag?'„Feuerstelle vorläufig zugelassen. Rückwirkend.“':'„Bitte wenden.“',4)}break;
+    case 'cig':
+      if(game.visitor!=='alien')break;
+      if(game.hand!=='match'){
+        if(game.matches)game.matches--;
+        game.hand='match'; // Der Besucher reicht bei leerer Schachtel selbst ein Holz.
+      }
+      game.lit=game.t+5;game.still=true;game.coughAt=game.t+1.1;
+      game.visitor='leaving';game.visitAt=Infinity;game.stormUntil=game.t+9;game.sound='strike';break;
+    case 'wood':
+      if(game.paper==='held'){game.paper='placed';game.sound='cloth';break}
+      if(!game.lit)break;
+      if(game.still||weather()!=='quiet'){extinguish();break}
+      if(game.paper!=='placed'){extinguish();thought('Das Holz ist feucht.');break}
+      if(!game.pinned){game.paper='wind';game.paperDelay=game.t+2;extinguish();break}
+      if(!game.bottle){game.bottle=true;extinguish();game.sound='metal';break}
+      if(!game.tag){extinguish();game.sound='metal';thought('Das Blechschild liegt wieder auf dem Papier.');break}
+      game.done=true;game.hand=null;game.lit=0;game.sound='fire';thought('Es brennt.',5);break;
+  }
 }
