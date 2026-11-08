@@ -1,6 +1,6 @@
 # How to Make Fire · v0.3
 
-Ein 3D-Versuch zur Anzündmechanik. Am vorbereiteten Holz liegen drei Streichhölzer in ihrer Schachtel. Maus und Touch greifen direkt an den Fingerspitzen. Einen Versuch von vorn beginnen kann man durch Neuladen.
+Ein 3D-Versuch zur Anzündmechanik. Am vorbereiteten Holz liegen drei Streichhölzer in ihrer Schachtel. Ziehe den Ärmel am Unterarm mit Maus oder Finger. Der Streichholzkopf bleibt vorne sichtbar. Beim Loslassen bleibt der Arm in seiner Position. Einen Versuch von vorn beginnen kann man durch Neuladen.
 
 ## Funktionsweise
 

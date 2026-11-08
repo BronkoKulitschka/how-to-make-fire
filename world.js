@@ -114,10 +114,6 @@ const tinderRadius=[.245,.115,.185];
 function touchesShavings(p){
  return p.reduce((d,v,i)=>d+((v-shavings[i])/tinderRadius[i])**2,0)<=1;
 }
-function matchTip(grip){
- // Grip stays at the fingers. Lower the burning head toward the fine wood.
- return add(grip,game.remaining>0?[-.09,-.077,-.025]:[-.115,-.012,-.01]);
-}
 function buildShavings(){
  const m=new Mesh(),r=rng(23);
  m.object('shavings',()=>{
@@ -167,39 +163,37 @@ function flame(m,p,h,t){
  m.rod(p,base,h*.035,h*.17,'#f0a042',6);m.rod(base,tip,h*.17,0,'#ffd075',6);
  m.rod([p[0],p[1],p[2]+.018],[p[0],p[1]+h*.64,p[2]+.018],h*.094,0,'#fff1bd',5);
 }
-// The pads meet at pinch. Only the fingertips share the held object's hit area.
-function drawHand(m,pinch,id,side){
- const offset=(x,y,z)=>add(pinch,[side*x,y,z]);
-
- const wrist=offset(.16,-.125,.10);
- const palm=offset(.077,-.058,.044);
- const sleeveEnd=offset(.19,-.15,.13);
- m.rod([side*.75,.62,2.86],sleeveEnd,.13,.082,'#525646',8);
- m.rod(sleeveEnd,wrist,.086,.074,'#746d55',8);
- m.rod(wrist,palm,.067,.049,'#b28664',8);
- const thumb=offset(.039,-.008,.027),index=offset(.047,.029,-.024);
- m.rod(palm,thumb,.030,.022,'#bd9171',7);
- m.rod(palm,index,.027,.020,'#c79b79',7);
- m.object(id,()=>{
-   m.rod(thumb,pinch,.022,.012,'#bd9171',7);
-   m.rod(index,pinch,.020,.011,'#c79b79',7);
+// The sleeve is the draggable part. Fingers and match follow its pose.
+function drawArm(m,pose){
+ const {anchor,grip}=pose;
+ const wrist=add(grip,mul(sub(anchor,grip),.42));
+ const palm=add(grip,mul(sub(wrist,grip),.48));
+ const shoulder=[.75,.62,2.86];
+ m.object('forearm',()=>{
+   m.rod(shoulder,anchor,.13,.089,'#525646',8);
+   m.rod(anchor,wrist,.089,.066,'#646753',8);
+   const band=mul(sub(wrist,anchor),.12);
+   m.rod(sub(anchor,band),add(anchor,band),.093,.089,'#999174',8);
  });
+ m.rod(wrist,palm,.066,.045,'#b28664',8);
+ const thumb=add(grip,[.029,.004,.029]),index=add(grip,[.038,.029,-.021]);
+ m.rod(palm,thumb,.030,.022,'#bd9171',7);m.rod(palm,index,.027,.020,'#c79b79',7);
+ m.rod(thumb,grip,.022,.012,'#bd9171',7);m.rod(index,grip,.020,.011,'#c79b79',7);
 }
-function dynamicWorld(t,grip){
+function dynamicWorld(t,pose){
  const m=new Mesh();
  matchbox(m);
  for(let i=0;i<game.spent;i++)m.rod([-.34+i*.08,.018,.76],[-.21+i*.08,.018,.81],.009,.008,'#504536',5);
- if(grip){
-   const id=game.held?'heldMatch':null;
-   drawHand(m,grip,id,1);
-   if(game.held){
-     const tip=matchTip(grip);
-     m.object(id,()=>{
-       m.rod(add(grip,[.034,.006,.004]),tip,.012,.009,'#dabc81',5);
-       m.rod(add(tip,[.012,.002,0]),tip,.019,.016,game.remaining?'#624235':'#a14a34',7);
-     });
-     if(game.remaining)flame(m,tip,.045+.080*Math.min(1,game.remaining),t);
-   }
+ drawArm(m,pose);
+ if(game.held){
+   const {grip,tip,unitsPerPixel}=pose,direction=unit(sub(tip,grip));
+   const shaft=Math.max(.012,1.7*unitsPerPixel),head=Math.max(.024,3.8*unitsPerPixel);
+   m.rod(add(grip,mul(direction,-.028)),tip,shaft*1.12,shaft,'#ffe1a1',7);
+   const base=add(tip,mul(sub(grip,tip),.24)),mid=add(tip,mul(sub(grip,tip),.11));
+   const color=game.remaining?'#ab4e2c':'#e85230';
+   m.rod(base,mid,shaft,head,color,8);
+   m.rod(mid,tip,head,head*.68,color,8,'#f17e48');
+   if(game.remaining)flame(m,tip,.060+.095*Math.min(1,game.remaining),t);
  }
  if(game.heat>.20){
    const s=Math.min(1,game.heat/heatToIgnite);
