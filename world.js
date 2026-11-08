@@ -1,13 +1,6 @@
 function rng(seed){return()=>((seed=Math.imul(seed,1664525)+1013904223>>>0)/4294967296)}
 const between=(r,a,b)=>a+(b-a)*r();
 const colors=(r,list)=>list[Math.floor(r()*list.length)];
-function rock(m,x,z,w,h,d,color,y=0,seed=1){
-  const r=rng(seed),a=[],b=[];
-  for(let i=0;i<7;i++){let t=i*Math.PI*2/7,k=.85+r()*.25;
-    a.push([x+w*k*Math.cos(t),y+.01,z+d*k*Math.sin(t)]);
-    b.push([x+w*k*.71*Math.cos(t+.13),y+h*(.75+r()*.19),z+d*k*.71*Math.sin(t+.13)])}
-  for(let i=0;i<7;i++){let j=(i+1)%7;m.quad(a[j],a[i],b[i],b[j],color);m.tri(b[j],b[i],[x-w*.17,y+h,z-d*.15],color)}
-}
 function log(m,a,b,r,seed){
  const rand=rng(seed),axis=unit(sub(b,a)),u=unit(cross(axis,[0,1,0])),v=cross(axis,u),tip=add(b,mul(axis,.002));
  m.rod(a,b,r*.90,r,'#69503a',11,'#cd9760');
@@ -99,40 +92,50 @@ function buildWorld(){
      }
    }
  }
- shade(-.66,.98,.36,.24,.05,'#685c43');shade(.89,1.10,.41,.36,.09,'#5e5940');
- shade(.13,.14,1.11,.79,.14,'#63593f');
- // Dark earth and charcoal beneath an irregular ring of stones.
- rock(m,0,.04,.99,.032,.76,'#534836',.002,3);
- for(let i=0;i<15;i++){const t=i*Math.PI*2/15;rock(m,.91*Math.cos(t),.02+.70*Math.sin(t),between(r,.13,.21),between(r,.11,.24),between(r,.11,.19),colors(r,['#808574','#989784','#777b68','#a09a80']),.01,i+9)}
- m.object('wood',()=>{
-   log(m,[-.57,.14,-.32],[.50,.18,.49],.16,5);
-   log(m,[.60,.15,-.31],[-.36,.19,.49],.14,17);
-   log(m,[-.34,.23,-.25],[.28,.33,.34],.115,36);
-   for(let i=0;i<13;i++){let x=between(r,-.29,.29);m.rod([x,.20,.34],[x+between(r,-.17,.17),.26,between(r,-.2,.06)],.014,.010,'#bb9a69',5)}
+ shade(-.66,.98,.36,.24,.05,'#685c43');
+ shade(.04,.04,.90,.53,.09,'#63593f');
+ // Two logs frame an open pocket. Both the shavings and the air gaps remain visible.
+ m.object('logs',()=>{
+   log(m,[-.48,.10,-.43],[-.42,.13,.24],.125,5);
+   log(m,[.45,.10,-.45],[.44,.12,.21],.115,17);
  });
- // The jacket lies at the player's right knee, with its pocket seam facing upward.
- m.object('knee',()=>{
-   rock(m,.84,1.07,.37,.25,.36,'#454e46',.018,141);
-   // Folded canvas, a sleeve, its cuff, and two stitched seams.
-   m.rod([1.11,.15,.94],[1.22,.13,1.32],.12,.094,'#59604f',8);
-   m.rod([1.21,.13,1.28],[1.23,.13,1.36],.099,.099,'#737562',8);
-   m.rod([.58,.16,1.08],[.72,.20,1.35],.085,.10,'#5b6252',7);
-   for(let i=0;i<8;i++)m.box(.67+i*.052,.291,1.206,.024,.007,.007,'#96957d');
- });
- m.object('pocket',()=>{
-   m.box(.86,.245,1.08,.42,.085,.29,'#5d6253');m.box(.86,.293,1.016,.42,.024,.115,'#737664');
-   m.box(.86,.286,1.079,.33,.012,.017,'#292f2a');
-   m.rod([.89,.304,1.06],[.89,.314,1.06],.026,.025,'#c4af79',9);
+ m.object('twigs',()=>{
+   for(let i=0;i<10;i++){
+     const x=(i%2===0?-1:1)*between(r,.17,.35);
+     m.rod([x,.025,between(r,-.08,.31)],[x*.12,.21+r()*.07,-.14+r()*.11],.022,.012,
+       colors(r,['#a77f51','#997246','#c09563']),6);
+   }
  });
  return m;
 }
-const boxPos=[-.72,.08,.96],woodPos=[0,.25,.25];
-const paperRest=[-.38,.57,1.30];
-const matchHeadOffset=[-.073,.116,-.052];
-function paperPosition(t,pinch=paperRest){
- if(game.paper==='placed')return [0,.365,.44];
- if(game.paper==='held')return add(pinch,[.12,-.015,0]);
- const p=(t%14)/14;return [-1.55+3.10*p,.37+.15*Math.sin(p*7),.20+.26*Math.cos(p*6)];
+const boxPos=[-.72,.08,.96];
+const shavings=[0,.08,.26];
+const tinderRadius=[.245,.115,.185];
+function touchesShavings(p){
+ return p.reduce((d,v,i)=>d+((v-shavings[i])/tinderRadius[i])**2,0)<=1;
+}
+function matchTip(grip){
+ // Grip stays at the fingers. Lower the burning head toward the fine wood.
+ return add(grip,game.remaining>0?[-.09,-.077,-.025]:[-.115,-.012,-.01]);
+}
+function buildShavings(){
+ const m=new Mesh(),r=rng(23);
+ m.object('shavings',()=>{
+   for(let i=0;i<29;i++){
+     const x=shavings[0]+between(r,-.155,.155),z=shavings[2]+between(r,-.115,.115);
+     const angle=between(r,0,Math.PI*2),width=between(r,.010,.018);
+     const color=colors(r,['#f1cb88','#dab37a','#e3bd82','#edcc93']);
+     let last;
+     for(let j=0;j<9;j++){
+       const t=j/8,along=.15*(t-.5)+Math.sin(t*5.2)*.026;
+       const p=[x+along*Math.cos(angle),.02+(.019*i)%.044+.065*(1-Math.cos(t*5.2))*.5,z+along*Math.sin(angle)];
+       const edge=add(p,[width*Math.sin(angle),.003,-width*Math.cos(angle)]);
+       if(last)m.quad(last[0],last[1],edge,p,color);
+       last=[p,edge];
+     }
+   }
+ });
+ return m;
 }
 function matchbox(m){
  const [x,y,z]=boxPos;
@@ -158,30 +161,19 @@ function matchbox(m){
    m.rod([mx,y+.052,z-.079],[mx,y+.052,z-.108],.023,.022,'#ac462e',6)}
  });
 }
-function flame(m,p,h,t,still){
- const flicker=still?0:Math.sin(t*14)*h*.12;
+function flame(m,p,h,t){
+ const flicker=Math.sin(t*14)*h*.12;
  const tip=[p[0]+flicker,p[1]+h,p[2]],base=[p[0],p[1]+h*.22,p[2]];
  m.rod(p,base,h*.035,h*.17,'#f0a042',6);m.rod(base,tip,h*.17,0,'#ffd075',6);
  m.rod([p[0],p[1],p[2]+.018],[p[0],p[1]+h*.64,p[2]+.018],h*.094,0,'#fff1bd',5);
 }
-function visitor(m,t){
- const isAlien=game.visitor==='alien',departing=game.visitor==='leaving'&&game.lit&&game.still;
- if(game.visitor!=='person'&&!isAlien&&!departing)return;
- // Only the projected silhouette enters the clearing.
- const y=.043,ink='#343a31',shape=pts=>{for(let i=1;i<pts.length-1;i++)m.tri([pts[0][0],y,pts[0][1]],[pts[i][0],y,pts[i][1]],[pts[i+1][0],y,pts[i+1][1]],ink,true)};
- shape([[2.6,-1],[1.46,-.8],[1.23,-.63],[1.23,-.31],[1.62,.07],[2.6,.28]]);
- shape([[1.58,-.66],[1.06,-.94],[.57,-.54],[.43,-.60],[.98,-1.14],[1.62,-.89]]);
- if(isAlien||departing){for(let i=0;i<6;i++)shape([[.61,-.61],[.53,-.58],[.34-i*.019,-.61+i*.035],[.49,-.65+i*.011]]);
-   m.object('cig',()=>{m.rod([.67,.73,-.18],[.38,.69,-.12],.025,.026,'#e4d7ad',8);m.rod([.68,.73,-.18],[.60,.72,-.16],.026,.026,'#ac7a48',8);if(departing)flame(m,[.38,.69,-.12],.046,t,true)});
- }
-}
 // The pads meet at pinch. Only the fingertips share the held object's hit area.
-function drawHand(m,pinch,id,side,t){
+function drawHand(m,pinch,id,side){
  const offset=(x,y,z)=>add(pinch,[side*x,y,z]);
- const tremor=game.t>33&&!game.braced&&!game.still?Math.sin(t*9)*.012:0;
- const wrist=offset(.16+tremor,-.125,.10);
- const palm=offset(.077+tremor,-.058,.044);
- const sleeveEnd=offset(.19+tremor,-.15,.13);
+
+ const wrist=offset(.16,-.125,.10);
+ const palm=offset(.077,-.058,.044);
+ const sleeveEnd=offset(.19,-.15,.13);
  m.rod([side*.75,.62,2.86],sleeveEnd,.13,.082,'#525646',8);
  m.rod(sleeveEnd,wrist,.086,.074,'#746d55',8);
  m.rod(wrist,palm,.067,.049,'#b28664',8);
@@ -193,73 +185,55 @@ function drawHand(m,pinch,id,side,t){
    m.rod(index,pinch,.020,.011,'#c79b79',7);
  });
 }
-function dynamicWorld(t,grip,paperGrip=paperRest){
- const m=new Mesh(),r=rng(886);
- matchbox(m);visitor(m,t);
- if(game.paper!=='wind'||t>=game.paperDelay){
-   const [x,y,z]=paperPosition(t,paperGrip),w=.16,flap=game.paper==='wind'?Math.sin(t*4)*.038:.012;
-   m.object('paper',()=>{m.quad([x-w,y,z+.11],[x+.02,y+.025,z+.10],[x+.04,y+.03,z-.12],[x-w*.8,y+flap,z-.08],'#f2dba0');
-     m.quad([x+.02,y+.025,z+.10],[x+w,y+flap,z+.055],[x+w,y,z-.13],[x+.04,y+.03,z-.12],'#d8bd87');
-     for(let k=0;k<3;k++)m.box(x-.058,y+.034,z-.044+.027*k,.10,.002,.005,'#928769')
-   });
- }
- m.object('stone',()=>rock(m,game.pinned?.06:-.52,game.pinned?.45:.50,.12,.065,.11,'#b0ac90',game.pinned?.38:.06,6));
- for(let i=0;i<Math.min(3,game.fallen);i++)m.rod([-.34+i*.1,.049,.76],[-.21+i*.1,.047,.81],.009,.008,'#705c44',4);
- if(game.bottle){
-   const x=1.01,z=-.16;
-   m.object('tag',()=>{
-     m.rod([x,.035,z],[x,.48,z],.16,.17,'#747e75',10);
-     m.rod([x,.48,z],[x,.58,z],.17,.067,'#8c9888',10);
-     m.box(x,.62,z,.10,.08,.075,'#a09064');m.box(x,.69,z,.16,.025,.032,'#b0b19b');
-     m.box(x,.36,z+.164,.23,.145,.018,game.tag?'#b3aa89':'#d9c08e');
-     for(let i=0;i<2;i++)m.box(x,.39-i*.044,z+.176,.14-i*.03,.008,.004,'#696754');
-   });
- }
- if(game.pocket && game.hand!=='lighter'){
-   m.object('lighter',()=>{m.box(.89,.34,1.03,.097,.09,.13,'#a96641');m.box(.89,.395,1.03,.093,.027,.10,'#c9bea4')});
- }
- if(game.paper==='held')drawHand(m,paperGrip,'paper',-1,t);
+function dynamicWorld(t,grip){
+ const m=new Mesh();
+ matchbox(m);
+ for(let i=0;i<game.spent;i++)m.rod([-.34+i*.08,.018,.76],[-.21+i*.08,.018,.81],.009,.008,'#504536',5);
  if(grip){
-   const heldId=game.hand==='match'?'heldMatch':game.hand==='lighter'?'lighter':null;
-   drawHand(m,grip,heldId,1,t);
-   if(game.hand){
-     const tip=add(grip,game.hand==='match'?matchHeadOffset:[-.022,.090,-.008]);
-     const [x,y,z]=tip;
-     m.object(heldId,()=>{
-       if(game.hand==='match'){
-         m.rod(add(grip,[.025,-.043,.018]),tip,.013,.010,'#dabc81',5);
-         m.rod([x+.01,y-.015,z],[x,y+.015,z],.022,.016,'#a14a34',6);
-       }else{
-         m.box(x+.03,y-.103,z,.114,.18,.068,'#a96b47');
-         m.box(x+.03,y-.022,z,.113,.056,.069,'#c7bfaa');
-         m.rod([x+.03,y+.009,z],[x+.069,y+.009,z],.022,.022,'#535850',7);
-       }
+   const id=game.held?'heldMatch':null;
+   drawHand(m,grip,id,1);
+   if(game.held){
+     const tip=matchTip(grip);
+     m.object(id,()=>{
+       m.rod(add(grip,[.034,.006,.004]),tip,.012,.009,'#dabc81',5);
+       m.rod(add(tip,[.012,.002,0]),tip,.019,.016,game.remaining?'#624235':'#a14a34',7);
      });
-     if(game.lit)flame(m,[x,y+.016,z],.155,t,game.still);
+     if(game.remaining)flame(m,tip,.045+.080*Math.min(1,game.remaining),t);
    }
  }
- const wind=weather()==='wind';
- for(let i=0;i<12;i++){
-   const x=((t*(wind?.96:.15)+r()*8)%8)-4,z=-3+r()*3;
-   const y=.53+r()*.92+Math.sin(t+i)*.12;
-   if(wind)m.tri([x,y,z],[x+.10,y+.018,z+.03],[x+.023,y+.037,z+.026],i%2?'#bc9a59':'#9a9455');
- }
- // Low hanging leaves sway above the clearing, even before the first strike.
- for(let j=0;j<2;j++){
-   const start=[-1.55-j*.30,1.53+j*.38,-1.15],end=[-.76-j*.18,1.23+j*.37+(wind?.075:.012)*Math.sin(t*3+j),-1.34];
-   m.rod([-3.5,1.12,-3.6],start,.087,.031,'#604f37',5);m.rod(start,end,.028,.012,'#60563c',5);
-   for(let k=0;k<9;k++){
-     const p=add(start,mul(sub(end,start),(k+1)/10)),s=k%2?1:-1;
-     m.tri(p,add(p,[.075,.022,s*.12]),add(p,[.14,-.024,s*.18]),k%2?'#9d995f':'#baaa69');
+ if(game.heat>.20){
+   const s=Math.min(1,game.heat/heatToIgnite);
+   for(let i=0;i<5;i++){
+     const x=(i-2)*.039,z=.26+Math.sin(i*2)*.052;
+     m.rod([x,.068,z],[x+.032,.076,z+.008],.004+s*.006,.003,
+       s>.7?'#e58d39':'#976045',5);
    }
  }
- if(weather()==='rain'&&!game.done)for(let i=0;i<50;i++){
-   let x=r()*5-2.5,z=r()*5-2.5,y=2.8-((r()*4+t*2.5)%3);
-   m.tri([x,y,z],[x+.014,y-.11,z],[x+.018,y-.11,z],'#aab8a5',true);
- }
- if(game.done){
-   for(let i=0;i<13;i++){const a=i*2.4,p=[Math.cos(a)*.24,.30,Math.sin(a)*.19];flame(m,p,.35+.20*Math.sin(t*5+i),t+i,false)}
-   for(let i=0;i<12;i++){const f=(t*.36+i*.173)%1,x=Math.sin(i*2+f*5)*.13,y=.43+f*.8;m.tri([x,y,0],[x+.01,y+.018,0],[x+.015,y,0],'#ffce7e',true)}
+ if(game.stage!=='cold'){
+   const spread=game.stage==='shavings'?0:game.stage==='twigs'?1:2;
+   const grow=Math.min(1,(game.stageTime+.15)/2);
+   const height=[.15,.32,.56][spread]*(.74+grow*.26);
+   // Ember seams show which wood is now sustaining the fire.
+   if(spread>=1){
+     for(let i=0;i<6;i++){
+       const x=(i%2?1:-1)*(.08+i*.015);
+       m.rod([x,.083,.20],[x*.55,.158,.077],.008,.005,'#db7539',5);
+     }
+   }
+   if(spread===2){
+     for(const x of [-.42,.44]){
+       for(let i=0;i<3;i++){
+         const z=-.19+i*.14;
+         m.rod([x-.038,.239,z],[x-.025,.244,z+.095],.009,.006,'#b35d30',5);
+         flame(m,[x-.025,.245,z],grow*(.15+.07*Math.sin(t*5+i)),t+i);
+       }
+     }
+   }
+   for(let i=0;i<5+spread*3;i++){
+     const a=i*2.4,reach=.095+spread*.124;
+     flame(m,[Math.cos(a)*reach,.066+spread*.022,.26-spread*.10+Math.sin(a)*reach],
+       height*(1+.21*Math.sin(t*6+i)),t+i);
+   }
  }
  return m;
 }
