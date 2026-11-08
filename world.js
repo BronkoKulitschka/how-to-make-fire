@@ -127,10 +127,11 @@ function buildWorld(){
  return m;
 }
 const boxPos=[-.72,.08,.96],woodPos=[0,.25,.25];
-let draggedPaper=null;
-function paperPosition(t){
+const paperRest=[-.38,.57,1.30];
+const matchHeadOffset=[-.073,.116,-.052];
+function paperPosition(t,pinch=paperRest){
  if(game.paper==='placed')return [0,.365,.44];
- if(game.paper==='held')return draggedPaper||[-.38,.57,1.30];
+ if(game.paper==='held')return add(pinch,[.12,-.015,0]);
  const p=(t%14)/14;return [-1.55+3.10*p,.37+.15*Math.sin(p*7),.20+.26*Math.cos(p*6)];
 }
 function matchbox(m){
@@ -174,11 +175,29 @@ function visitor(m,t){
    m.object('cig',()=>{m.rod([.67,.73,-.18],[.38,.69,-.12],.025,.026,'#e4d7ad',8);m.rod([.68,.73,-.18],[.60,.72,-.16],.026,.026,'#ac7a48',8);if(departing)flame(m,[.38,.69,-.12],.046,t,true)});
  }
 }
-function dynamicWorld(t,held){
+// The pads meet at pinch. Only the fingertips share the held object's hit area.
+function drawHand(m,pinch,id,side,t){
+ const offset=(x,y,z)=>add(pinch,[side*x,y,z]);
+ const tremor=game.t>33&&!game.braced&&!game.still?Math.sin(t*9)*.012:0;
+ const wrist=offset(.16+tremor,-.125,.10);
+ const palm=offset(.077+tremor,-.058,.044);
+ const sleeveEnd=offset(.19+tremor,-.15,.13);
+ m.rod([side*.75,.62,2.86],sleeveEnd,.13,.082,'#525646',8);
+ m.rod(sleeveEnd,wrist,.086,.074,'#746d55',8);
+ m.rod(wrist,palm,.067,.049,'#b28664',8);
+ const thumb=offset(.039,-.008,.027),index=offset(.047,.029,-.024);
+ m.rod(palm,thumb,.030,.022,'#bd9171',7);
+ m.rod(palm,index,.027,.020,'#c79b79',7);
+ m.object(id,()=>{
+   m.rod(thumb,pinch,.022,.012,'#bd9171',7);
+   m.rod(index,pinch,.020,.011,'#c79b79',7);
+ });
+}
+function dynamicWorld(t,grip,paperGrip=paperRest){
  const m=new Mesh(),r=rng(886);
  matchbox(m);visitor(m,t);
  if(game.paper!=='wind'||t>=game.paperDelay){
-   const [x,y,z]=paperPosition(t),w=.16,flap=game.paper==='wind'?Math.sin(t*4)*.038:.012;
+   const [x,y,z]=paperPosition(t,paperGrip),w=.16,flap=game.paper==='wind'?Math.sin(t*4)*.038:.012;
    m.object('paper',()=>{m.quad([x-w,y,z+.11],[x+.02,y+.025,z+.10],[x+.04,y+.03,z-.12],[x-w*.8,y+flap,z-.08],'#f2dba0');
      m.quad([x+.02,y+.025,z+.10],[x+w,y+flap,z+.055],[x+w,y,z-.13],[x+.04,y+.03,z-.12],'#d8bd87');
      for(let k=0;k<3;k++)m.box(x-.058,y+.034,z-.044+.027*k,.10,.002,.005,'#928769')
@@ -199,21 +218,25 @@ function dynamicWorld(t,held){
  if(game.pocket && game.hand!=='lighter'){
    m.object('lighter',()=>{m.box(.89,.34,1.03,.097,.09,.13,'#a96641');m.box(.89,.395,1.03,.093,.027,.10,'#c9bea4')});
  }
- if(game.hand&&held){
-   const p=held,shake=game.t>33&&!game.braced&&!game.still?Math.sin(t*9)*.012:0,x=p[0]+shake,y=p[1],z=p[2];
-   // A sleeve and fingertips connect the held tool to the seated viewpoint.
-   const grip=[x+.105,y-.145,z+.08];
-   m.rod(add(grip,[.45,-.38,.32]),add(grip,[.14,-.12,.08]),.134,.084,'#525646',7);
-   m.rod(add(grip,[.16,-.135,.09]),add(grip,[.115,-.086,.05]),.088,.080,'#746d55',7);
-   m.rod(add(grip,[.13,-.1,.06]),grip,.072,.049,'#b28664',7);
-   m.rod(add(grip,[.042,.007,.034]),add(grip,[-.031,.041,.012]),.027,.016,'#bd9171',7);
-   m.rod(add(grip,[.039,.014,-.026]),add(grip,[-.036,.06,-.032]),.023,.015,'#c79b79',7);
-   if(game.hand==='match'){
-     m.object('heldMatch',()=>{m.rod([x+.11,y-.18,z+.09],[x,y,z],.013,.010,'#dabc81',5);m.rod([x+.01,y-.015,z],[x,y+.015,z],.022,.016,'#a14a34',6)});
-   }else{
-     m.object('lighter',()=>{m.box(x+.03,y-.103,z,.114,.18,.068,'#a96b47');m.box(x+.03,y-.022,z,.113,.056,.069,'#c7bfaa');m.rod([x+.03,y+.009,z],[x+.069,y+.009,z],.022,.022,'#535850',7)});
+ if(game.paper==='held')drawHand(m,paperGrip,'paper',-1,t);
+ if(grip){
+   const heldId=game.hand==='match'?'heldMatch':game.hand==='lighter'?'lighter':null;
+   drawHand(m,grip,heldId,1,t);
+   if(game.hand){
+     const tip=add(grip,game.hand==='match'?matchHeadOffset:[-.022,.090,-.008]);
+     const [x,y,z]=tip;
+     m.object(heldId,()=>{
+       if(game.hand==='match'){
+         m.rod(add(grip,[.025,-.043,.018]),tip,.013,.010,'#dabc81',5);
+         m.rod([x+.01,y-.015,z],[x,y+.015,z],.022,.016,'#a14a34',6);
+       }else{
+         m.box(x+.03,y-.103,z,.114,.18,.068,'#a96b47');
+         m.box(x+.03,y-.022,z,.113,.056,.069,'#c7bfaa');
+         m.rod([x+.03,y+.009,z],[x+.069,y+.009,z],.022,.022,'#535850',7);
+       }
+     });
+     if(game.lit)flame(m,[x,y+.016,z],.155,t,game.still);
    }
-   if(game.lit)flame(m,[x,y+.016,z],.155,t,game.still);
  }
  const wind=weather()==='wind';
  for(let i=0;i<12;i++){

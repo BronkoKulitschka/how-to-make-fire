@@ -37,7 +37,7 @@ function project(p,c){
   const v=sub(p,c.eye),z=dot(v,c.f);
   return [(1+dot(v,c.r)*c.fx/z)*c.w/2,(1-dot(v,c.u)*c.fy/z)*c.h/2,z];
 }
-function pick(x,y,cam,meshes){
+function intersect(x,y,cam,meshes){
   const dir=unit(add(cam.f,add(mul(cam.r,(2*x/cam.w-1)/cam.fx),mul(cam.u,(1-2*y/cam.h)/cam.fy))));
   let nearest=Infinity,id=null;
   for(const mesh of meshes)for(const face of mesh.hits){
@@ -46,7 +46,7 @@ function pick(x,y,cam,meshes){
     const t=dot(normal,sub(face.a,cam.eye))/den;if(t<=0||t>=nearest)continue;
     const p=add(cam.eye,mul(dir,t));
     if([[face.a,face.b],[face.b,face.c],[face.c,face.a]].every(([a,b])=>dot(normal,cross(sub(b,a),sub(p,a)))>=( -1e-7 * dot(normal,normal) ))){nearest=t;id=face.id}
-  }return id;
+  }return id?{id,point:add(cam.eye,mul(dir,nearest))}:null;
 }
 function makeRenderer(canvas){
   const gl=canvas.getContext('webgl',{alpha:true,antialias:true,premultipliedAlpha:false});

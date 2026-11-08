@@ -1,14 +1,22 @@
 const canvas=document.querySelector('canvas'),caption=document.querySelector('#thought');
 let draw=makeRenderer(canvas);
 const fixed=buildWorld(),look=[0,0],targetLook=[0,0];
-let cam, moving,drag=null,handPos=null,previous=0,clock=0,lastFrame=0;
-const rest=[.35,.56,1.41];
+let cam, moving,drag=null,previous=0,clock=0,lastFrame=0;
+const rest=[.38,.455,1.41];
 function updateScene(){
  const w=canvas.clientWidth,h=canvas.clientHeight,ratio=Math.min(1.55,devicePixelRatio||1);
  if(canvas.width!==Math.round(w*ratio)||canvas.height!==Math.round(h*ratio)){canvas.width=Math.round(w*ratio);canvas.height=Math.round(h*ratio)}
  cam=camera(w,h,look);
- const held=game.still?[.38,.70,-.12]:handPos||rest;
- moving=dynamicWorld(clock,held);
+ // Reproject from the active pointer using the camera that draws this frame.
+ if(drag?.moved&&drag.id&&moving){
+   const surface=hitAt(drag.lastX,drag.lastY,true);
+   if(surface)drag.depth=dot(sub(surface.point,cam.eye),cam.f);
+ }
+ const reach=drag?.id?handAt(drag.lastX,drag.lastY,drag.depth):null;
+ const holdsPaper=drag?.id==='paper'&&game.paper==='held';
+ let grip=reach&&!holdsPaper?reach:(game.hand?rest:null);
+ if(game.still)grip=sub([.38,.70,-.12],matchHeadOffset);
+ moving=dynamicWorld(clock,grip,holdsPaper?reach:paperRest);
  const night=Math.min(.98,game.t/110),light=game.done?.78+.12*Math.sin(clock*15):0;
  draw(cam,fixed,moving,night,light);
  canvas.parentElement.style.setProperty('--dusk',String(Math.round(night*(game.done?.15:.34)*64)/64));
@@ -17,27 +25,29 @@ function updateScene(){
  caption.style.opacity=text?'1':'0';
 }
 function point(e){const b=canvas.getBoundingClientRect();return [e.clientX-b.left,e.clientY-b.top]}
-function aim(x,y,omitHand=false){
+function hitAt(x,y,omitHand=false){
  const skip=omitHand?new Set(['heldMatch','lighter',...(game.paper==='held'?['paper']:[])]):null;
  const active=skip?{hits:moving.hits.filter(f=>!skip.has(f.id))}:moving;
- const direct=(dx,dy)=>pick(x+dx,y+dy,cam,[active,fixed]);
+ const direct=(dx,dy)=>intersect(x+dx,y+dy,cam,[active,fixed]);
  const hit=direct(0,0);if(hit)return hit;
  const pad=matchMedia('(pointer: coarse)').matches?9:4;
  for(const [dx,dy] of [[pad,0],[-pad,0],[0,pad],[0,-pad]]){const h=direct(dx,dy);if(h)return h}
  return null;
 }
-function handAt(x,y){
+function aim(x,y,omitHand=false){return hitAt(x,y,omitHand)?.id||null}
+function handAt(x,y,depth){
  const dir=add(cam.f,add(mul(cam.r,(2*x/cam.w-1)/cam.fx),mul(cam.u,(1-2*y/cam.h)/cam.fy)));
- return add(cam.eye,mul(dir,1.82));
+ return add(cam.eye,mul(dir,Math.max(.1,depth-.025)));
 }
 function wake(){game.awake=true;enableAudio();if(audio?.state==='suspended')audio.resume().catch(()=>{})}
 function perform(id){if(!id)return;touch(id);cue();updateScene()}
 canvas.addEventListener('pointerdown',e=>{
  if(drag)return;
  if(!cam)updateScene();
- wake();const [x,y]=point(e),id=aim(x,y);
- drag={pointer:e.pointerId,x,y,lastX:x,lastY:y,id,moved:false,taken:false,struck:false};
- canvas.setPointerCapture(e.pointerId);
+ wake();const [x,y]=point(e),hit=hitAt(x,y);
+ const id=hit?.id||null,depth=hit?dot(sub(hit.point,cam.eye),cam.f):1.82;
+ drag={pointer:e.pointerId,x,y,lastX:x,lastY:y,id,depth,moved:false,taken:false,struck:false};
+ canvas.setPointerCapture(e.pointerId);updateScene();
 });
 canvas.addEventListener('pointermove',e=>{
  if(!cam)return;
@@ -63,8 +73,6 @@ canvas.addEventListener('pointermove',e=>{
        if(drag.id==='pocket')perform('pocket');
        drag.taken=true;
      }
-     if(drag.id==='paper'&&game.paper==='held')draggedPaper=handAt(x,y);
-     else if(game.hand&&!game.still)handPos=handAt(x,y);
      const dist=Math.hypot(x-drag.x,y-drag.y);
      if(!game.lit&&!drag.struck&&game.hand==='match'&&dist>=11){
        const steps=Math.min(48,Math.max(1,Math.ceil(Math.hypot(dx,dy)/5)));
@@ -94,10 +102,10 @@ function finish(e){
      else if(gesture.id==='lighter'&&!gesture.struck)perform('lighter');
    }
  }
- handPos=null;draggedPaper=null;drag=null;
+ drag=null;updateScene();
 }
 canvas.addEventListener('pointerup',finish);canvas.addEventListener('pointercancel',finish);
-canvas.addEventListener('lostpointercapture',()=>{drag=null;handPos=null;draggedPaper=null});
+canvas.addEventListener('lostpointercapture',()=>{drag=null});
 canvas.addEventListener('contextmenu',e=>e.preventDefault());
 canvas.addEventListener('webglcontextlost',e=>e.preventDefault());
 canvas.addEventListener('webglcontextrestored',()=>{draw=makeRenderer(canvas)});
